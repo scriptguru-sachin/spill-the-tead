@@ -1,0 +1,132 @@
+.message-followups {
+  margin: 8px 0 0;
+}
+
+.message-followups-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 auto;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #a64d31;
+  font-size: 9px;
+}
+
+.message-followups-trigger:hover:not(:disabled) {
+  background: #f3e7d8;
+}
+
+.message-followups-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.message-followups-trigger svg {
+  width: 13px;
+  height: 13px;
+}
+
+.message-followups-panel {
+  margin-top: 6px;
+  padding: 11px;
+  border: 1px solid #dfd2c1;
+  border-radius: 6px;
+  background: #f8f1e7;
+  animation: rise 0.25s ease-out;
+}
+
+.message-followup-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.message-followup-options button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #d7c7b5;
+  border-radius: 16px;
+  background: #fffaf1;
+  color: #5e4d40;
+  padding: 6px 9px;
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.message-followup-options button:hover:not(:disabled) {
+  border-color: #c77b5e;
+  background: #f8e4db;
+}
+
+.message-followup-options button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.message-followup-options button svg {
+  width: 12px;
+  height: 12px;
+  color: #a64d31;
+}
+
+.message-followup-status,
+.message-followup-error {
+  margin: 9px 0 0;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.message-followup-status {
+  color: #756b60;
+}
+
+.message-followup-error {
+  color: #a33424;
+}
+
+.message-followup-answer {
+  margin-top: 9px;
+  padding: 9px 10px;
+  border-left: 2px solid #63816a;
+  background: #edf2eb;
+  animation: rise 0.3s ease-out;
+}
+
+.message-followup-answer b {
+  display: block;
+  margin-bottom: 4px;
+  color: #39483c;
+  font-size: 9px;
+}
+
+.message-followup-answer p {
+  margin: 0;
+  color: #4e594f;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.transcript-item > .message-followups {
+  margin: 8px 0 0 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.transcript-item > .message-followups > .message-followups-trigger {
+  margin: 0;
+}
+
+.transcript-item > .message-followups > .message-followups-panel {
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .transcript-item > .message-followups {
+    margin-left: 20px;
+  }
+}

@@ -101,6 +101,28 @@ const tabs = [
   { id: "visual", label: "Concept map", icon: Network },
   { id: "quiz", label: "Quick quiz", icon: CircleHelp },
 ];
+const messageFollowUps = [
+  {
+    id: "plain_language",
+    label: "Explain more simply",
+    instruction: "Explain this message in plain, simple language without changing its meaning.",
+  },
+  {
+    id: "real_world_example",
+    label: "Give me an example",
+    instruction: "Give one concrete, relevant real-world example that illustrates this message.",
+  },
+  {
+    id: "why_it_matters",
+    label: "Why does it matter?",
+    instruction: "Explain why this idea matters and what it affects in the larger topic.",
+  },
+  {
+    id: "connect_the_dots",
+    label: "Connect it to another idea",
+    instruction: "Explain how this idea connects to another key idea in the lesson.",
+  },
+];
 
 function getTeachBackResponse(question) {
   if (typeof question !== "string" || !question.startsWith("TEACH_BACK:"))
@@ -113,6 +135,13 @@ function getTeachBackResponse(question) {
   } catch {
     return null;
   }
+}
+
+function getMessageFollowUpMode(question) {
+  if (typeof question !== "string" || !question.startsWith("FOLLOW_UP:"))
+    return null;
+  const mode = question.slice("FOLLOW_UP:".length).split("\n", 1)[0];
+  return messageFollowUps.find((followUp) => followUp.id === mode) || null;
 }
 
 function getClientId() {
@@ -301,6 +330,10 @@ export default function App() {
   const [doubtReply, setDoubtReply] = useState("");
   const [doubtLoading, setDoubtLoading] = useState(false);
   const [doubtHistory, setDoubtHistory] = useState([]);
+  const [openFollowUpKey, setOpenFollowUpKey] = useState("");
+  const [followUpLoadingKey, setFollowUpLoadingKey] = useState("");
+  const [followUpError, setFollowUpError] = useState("");
+  const [followUpErrorKey, setFollowUpErrorKey] = useState("");
   const [predictionDraft, setPredictionDraft] = useState("");
   const [predictionFeedback, setPredictionFeedback] = useState("");
   const [predictionError, setPredictionError] = useState("");
@@ -331,6 +364,10 @@ export default function App() {
     autoplayTimerRef.current = null;
     setDoubtCharacter(null);
     setDoubtReply("");
+    setOpenFollowUpKey("");
+    setFollowUpLoadingKey("");
+    setFollowUpError("");
+    setFollowUpErrorKey("");
     teachBackRequest.current += 1;
     setTeachBackDraft("");
     setTeachBackReply("");
@@ -614,6 +651,42 @@ export default function App() {
     }
   }
 
+  async function askMessageFollowUp(mode, message, character, messageKey) {
+    if (
+      !message?.id ||
+      !character?.id ||
+      followUpLoadingKey ||
+      !lesson?.id
+    )
+      return;
+    const option = messageFollowUps.find((followUp) => followUp.id === mode);
+    if (!option) return;
+
+    setOpenFollowUpKey(messageKey);
+    setFollowUpLoadingKey(`${messageKey}:${mode}`);
+    setFollowUpError("");
+    setFollowUpErrorKey("");
+    try {
+      const data = await api(`/lessons/${lesson.id}/doubts`, {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: clientId,
+          message_id: message.id,
+          character_id: character.id,
+          question: `FOLLOW_UP:${option.id}\n${option.instruction}`,
+        }),
+      });
+      if (typeof data.answer !== "string" || !data.answer.trim())
+        throw new Error("That follow-up wasn't available. Please try again.");
+      setDoubtHistory((items) => [...items, data]);
+    } catch (e) {
+      setFollowUpError(e.message);
+      setFollowUpErrorKey(messageKey);
+    } finally {
+      setFollowUpLoadingKey("");
+    }
+  }
+
   async function submitPrediction(event) {
     event.preventDefault();
     const prediction = predictionDraft.trim();
@@ -857,6 +930,91 @@ export default function App() {
       autoplayAdvancePending.current = null;
       advanceAutoplay(messageKey);
     }
+  }
+
+  function renderMessageFollowUps(message, character, messageKey) {
+    const savedFollowUps = doubtHistory.filter(
+      (item) =>
+        message?.id &&
+        item.message_id === message?.id &&
+        getMessageFollowUpMode(item.question),
+    );
+    const isOpen = openFollowUpKey === messageKey;
+    const isLoadingMessage = followUpLoadingKey.startsWith(`${messageKey}:`);
+    return (
+      <div className="message-followups">
+        <button
+          type="button"
+          className="message-followups-trigger"
+          onClick={() => {
+            setOpenFollowUpKey(isOpen ? "" : messageKey);
+            setFollowUpError("");
+            setFollowUpErrorKey("");
+          }}
+          aria-expanded={isOpen}
+          aria-controls={`follow-ups-${messageKey}`}
+          disabled={!message?.id || !character?.id}
+          title={
+            !message?.id
+              ? "Follow-ups are unavailable for this message"
+              : undefined
+          }
+        >
+          <Sparkles />
+          {isOpen ? "Hide follow-ups" : "Explore this message"}
+        </button>
+        {isOpen && (
+          <div
+            className="message-followups-panel"
+            id={`follow-ups-${messageKey}`}
+          >
+            <div className="message-followup-options">
+              {messageFollowUps.map((option) => (
+                <button
+                  type="button"
+                  key={option.id}
+                  onClick={() =>
+                    askMessageFollowUp(
+                      option.id,
+                      message,
+                      character,
+                      messageKey,
+                    )
+                  }
+                  disabled={!!followUpLoadingKey}
+                >
+                  {followUpLoadingKey === `${messageKey}:${option.id}` ? (
+                    <LoaderCircle className="spin" />
+                  ) : (
+                    <ArrowRight />
+                  )}
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {isLoadingMessage && (
+              <p className="message-followup-status" role="status">
+                Preparing a response…
+              </p>
+            )}
+            {followUpErrorKey === messageKey && followUpError && (
+              <p className="message-followup-error" role="alert">
+                {followUpError}
+              </p>
+            )}
+            {savedFollowUps.map((item) => {
+              const option = getMessageFollowUpMode(item.question);
+              return (
+                <article className="message-followup-answer" key={item.id}>
+                  <b>{option?.label || "Follow-up"}</b>
+                  <p>{item.answer}</p>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -1423,6 +1581,11 @@ export default function App() {
                         >
                           <CircleHelp /> Ask a doubt about this message
                         </button>
+                        {renderMessageFollowUps(
+                          currentMessage,
+                          currentSpeaker,
+                          String(currentSpeechMessageKey),
+                        )}
                         {doubtCharacter?.id === currentSpeaker.id && (
                           <div className="inline-doubt">
                             <div className="quick-doubts">
@@ -1589,7 +1752,8 @@ export default function App() {
                       const messageDoubts = doubtHistory.filter(
                         (item) =>
                           item.message_id === m.id &&
-                          !getTeachBackResponse(item.question),
+                          !getTeachBackResponse(item.question) &&
+                          !getMessageFollowUpMode(item.question),
                       );
                       return (
                         <div className="transcript-item" key={m.id || i}>
@@ -1611,6 +1775,11 @@ export default function App() {
                               </div>
                             </div>
                           ))}
+                          {renderMessageFollowUps(
+                            m,
+                            c,
+                            String(m.id || `transcript-${i}`),
+                          )}
                         </div>
                       );
                     })}
