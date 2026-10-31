@@ -253,12 +253,127 @@
   -webkit-line-clamp: 2;
 }
 
+.related-topics {
+  width: min(100%, 920px);
+  margin: 22px auto 0;
+  padding: 22px;
+  border: 1px solid #dfd2c1;
+  border-radius: 12px;
+  background: #f8f1e7;
+}
+
+.related-topics-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.related-topics-heading > div > span {
+  color: #a64d31;
+  font: 8px "DM Mono", monospace;
+  letter-spacing: 1px;
+}
+
+.related-topics-heading h2 {
+  margin: 5px 0;
+  font: 700 22px "Fraunces", serif;
+}
+
+.related-topics-heading p {
+  margin: 0;
+  color: #756b60;
+  font-size: 11px;
+}
+
+.related-topics-heading > svg {
+  width: 23px;
+  color: #a64d31;
+}
+
+.related-topics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.related-topic {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #e5d9c9;
+  border-radius: 7px;
+  background: #fcf8f0;
+}
+
+.related-topic > small {
+  display: block;
+  overflow: hidden;
+  margin-bottom: 7px;
+  color: #756b60;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-topic > button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #55493e;
+  text-align: left;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.related-topic > button:hover {
+  color: #a64d31;
+}
+
+.related-topic > button svg {
+  flex: 0 0 auto;
+  color: #a64d31;
+}
+
+.related-topics-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  margin: 14px auto 0;
+  padding: 0 12px;
+  border: 1px solid #d5c8b8;
+  border-radius: 18px;
+  background: #fffaf2;
+  color: #55493e;
+  font-size: 10px;
+}
+
+.related-topics-more:hover {
+  border-color: #c77b5e;
+  background: #f8e4db;
+}
+
 @media (max-width: 620px) {
   .history-recommendations {
     padding: 16px;
   }
 
   .history-recommendation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .related-topics {
+    padding: 16px;
+  }
+
+  .related-topics-grid {
     grid-template-columns: 1fr;
   }
 }

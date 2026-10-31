@@ -94,6 +94,58 @@ const topicCategories = [
     },
   },
 ];
+const historyRelatedTopics = [
+  [
+    "How compound interest changes savings over time",
+    "How credit scores affect borrowing",
+    "How inflation changes what money can buy",
+    "How investing balances risk and return",
+    "How taxes fund public services",
+    "How central banks influence interest rates",
+    "How insurance helps manage financial risk",
+    "How businesses decide what to charge",
+  ],
+  [
+    "How cells turn DNA instructions into proteins",
+    "How the immune system remembers infections",
+    "How ecosystems depend on food webs",
+    "How genes and environment shape health",
+    "How evolution changes populations",
+    "How the brain sends signals through the body",
+    "How vaccines train the immune system",
+    "How plants turn sunlight into stored energy",
+  ],
+  [
+    "How binary search finds information quickly",
+    "How hash maps make lookups efficient",
+    "How trees organize connected data",
+    "How sorting algorithms trade speed for memory",
+    "How graphs help find the shortest route",
+    "How queues and stacks handle tasks differently",
+    "How databases index large collections",
+    "How recommendation systems rank results",
+  ],
+  [
+    "How APIs let different apps communicate",
+    "How encryption protects information online",
+    "How cloud computing scales websites",
+    "How machine-learning models learn from examples",
+    "How browsers turn code into a webpage",
+    "How networks route data across the internet",
+    "How databases store and retrieve app data",
+    "How software updates keep apps reliable",
+  ],
+  [
+    "How communities make decisions together",
+    "How to tell reliable evidence from misinformation",
+    "How public policy affects everyday life",
+    "How elections turn votes into outcomes",
+    "How weather patterns shape local climates",
+    "How arguments use evidence to persuade",
+    "How laws are made and changed",
+    "How culture shapes the way people communicate",
+  ],
+];
 const tabs = [
   { id: "gossip", label: "The gossip", icon: MessageCircle },
   { id: "technical", label: "Technical explanation", icon: FileText },
@@ -333,6 +385,7 @@ export default function App() {
   const [topicAudience, setTopicAudience] = useState("all");
   const [lesson, setLesson] = useState(null);
   const [history, setHistory] = useState([]);
+  const [visibleRelatedTopicCount, setVisibleRelatedTopicCount] = useState(5);
   const [tab, setTab] = useState("gossip");
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
@@ -837,9 +890,6 @@ export default function App() {
     [lesson],
   );
   const historyRecommendations = useMemo(() => {
-    const visited = new Set(
-      history.map((item) => item.topic?.trim().toLowerCase()).filter(Boolean),
-    );
     const categoryMatchers = [
       /finance|money|budget|saving|price|interest|bank|credit|invest/i,
       /biology|cell|plant|dna|gene|immune|food chain|brain|evolution|health/i,
@@ -852,22 +902,42 @@ export default function App() {
       const categoryIndex = categoryMatchers.findIndex((pattern) =>
         pattern.test(sourceTopic),
       );
-      const category =
-        categoryIndex >= 0 ? topicCategories[categoryIndex] : null;
-      const suggestions =
-        category?.topics[topicAudience] || category?.topics.all || [];
-      const relatedTopic = suggestions.find(
-        (suggestion) => !visited.has(suggestion.toLowerCase()),
-      );
-
       return {
         source,
-        relatedTopic:
-          relatedTopic ||
-          `Real-world applications of ${sourceTopic}`.slice(0, 300),
+        relatedTopics: categoryIndex >= 0
+          ? historyRelatedTopics[categoryIndex]
+          : [
+              `How ${sourceTopic} works behind the scenes`,
+              `Where ${sourceTopic} is used in real life`,
+              `What challenges are connected to ${sourceTopic}`,
+              `How ${sourceTopic} has changed over time`,
+              `What ideas are closely related to ${sourceTopic}`,
+              `How experts measure progress in ${sourceTopic}`,
+              `What could change the future of ${sourceTopic}`,
+              `How ${sourceTopic} affects everyday decisions`,
+            ],
       };
     });
-  }, [history, topicAudience]);
+  }, [history]);
+  const relatedTopicSuggestions = useMemo(() => {
+    const visited = new Set(
+      history.map((item) => item.topic?.trim().toLowerCase()).filter(Boolean),
+    );
+    const seen = new Set();
+    return historyRecommendations.flatMap(({ source, relatedTopics }) =>
+      relatedTopics
+        .filter((relatedTopic) => {
+          const normalized = relatedTopic.trim().toLowerCase();
+          if (visited.has(normalized) || seen.has(normalized)) return false;
+          seen.add(normalized);
+          return true;
+        })
+        .map((relatedTopic) => ({ source, relatedTopic })),
+    );
+  }, [history, historyRecommendations]);
+  useEffect(() => {
+    setVisibleRelatedTopicCount(5);
+  }, [history]);
 
   const currentMessage = lesson?.conversation?.[gossipIndex];
   const currentSpeechMessageKey = currentMessage
@@ -1316,7 +1386,7 @@ export default function App() {
                   <History aria-hidden="true" />
                 </div>
                 <div className="history-recommendation-grid">
-                  {historyRecommendations.map(({ source, relatedTopic }) => (
+                  {historyRecommendations.map(({ source }) => (
                     <article
                       className="history-recommendation"
                       key={source.id}
@@ -1340,26 +1410,55 @@ export default function App() {
                         </span>
                         <ArrowUpRight />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTopic(relatedTopic);
-                          generate(relatedTopic);
-                        }}
-                        disabled={loading}
-                      >
-                        <span className="history-recommendation-icon">
-                          <ArrowRight />
-                        </span>
-                        <span>
-                          <b>Explore a related topic</b>
-                          <small>{relatedTopic}</small>
-                        </span>
-                        <ArrowUpRight />
-                      </button>
                     </article>
                   ))}
                 </div>
+              </section>
+            )}
+            {relatedTopicSuggestions.length > 0 && (
+              <section
+                className="related-topics"
+                aria-labelledby="related-topics-title"
+              >
+                <div className="related-topics-heading">
+                  <div>
+                    <span>INSPIRED BY YOUR SEARCH HISTORY</span>
+                    <h2 id="related-topics-title">Related topics to search next</h2>
+                    <p>
+                      These ideas connect to topics you have explored. Choose one
+                      to add it to your search.
+                    </p>
+                  </div>
+                  <ArrowRight aria-hidden="true" />
+                </div>
+                <div className="related-topics-grid">
+                  {relatedTopicSuggestions
+                    .slice(0, visibleRelatedTopicCount)
+                    .map(({ source, relatedTopic }) => (
+                      <article className="related-topic" key={`${source.id}-${relatedTopic}`}>
+                        <small>Related to {source.topic}</small>
+                        <button
+                          type="button"
+                          onClick={() => setTopic(relatedTopic)}
+                        >
+                          <span>{relatedTopic}</span>
+                          <ArrowUpRight size={15} aria-hidden="true" />
+                        </button>
+                      </article>
+                    ))}
+                </div>
+                {visibleRelatedTopicCount < relatedTopicSuggestions.length && (
+                  <button
+                    className="related-topics-more"
+                    type="button"
+                    onClick={() =>
+                      setVisibleRelatedTopicCount((count) => count + 5)
+                    }
+                  >
+                    Load more topics
+                    <ChevronRight size={15} aria-hidden="true" />
+                  </button>
+                )}
               </section>
             )}
             <section className="topic-explorer" aria-labelledby="topic-explorer-title">
