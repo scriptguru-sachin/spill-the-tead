@@ -279,6 +279,7 @@ When hosting the frontend separately, copy `client/.env.example` to `client/.env
 | --- | --- | --- |
 | `GEMINI_API_KEY` | none | **Required.** Google Gemini API key. |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model used for lessons and doubts. |
+| `GEMINI_GROUNDING_ENABLED` | `false` | Set to `true` to request Google Search grounding for generated lessons. |
 | `FRONTEND_URL` | `http://localhost:5173` | Allowed CORS origin. |
 | `DB_CONNECTION` | `pgsql` | Database driver. |
 | `DB_HOST` | `db` | Database host (Docker service name). |

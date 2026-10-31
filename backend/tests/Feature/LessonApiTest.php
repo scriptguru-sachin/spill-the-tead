@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request as ClientRequest;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -18,6 +19,7 @@ class LessonApiTest extends TestCase
     public function test_a_generated_lesson_is_validated_and_persisted(): void
     {
         config(['services.gemini.key' => 'test-key']);
+        config(['services.gemini.grounding_enabled' => false]);
         Http::fakeSequence()
             ->push(['candidates' => [['content' => ['parts' => [['text' => json_encode($this->lessonPayload())]]]]]])
             ->push(['candidates' => [['content' => ['parts' => [['text' => json_encode(['answer' => 'A request asks the server for a resource.'])]]]]]])
@@ -32,7 +34,12 @@ class LessonApiTest extends TestCase
                 ],
             ])]]]]]]);
         $response = $this->postJson('/api/lessons', ['client_id' => 'b7bd2ea5-a7ca-46de-b4e6-69d1a683389f', 'topic' => 'How APIs work', 'level' => 'Beginner', 'format' => 'Group chat', 'drama' => 3]);
-        $response->assertCreated()->assertJsonPath('data.topic', 'How APIs work')->assertJsonCount(4, 'data.quiz');
+        $response->assertCreated()
+            ->assertJsonPath('data.topic', 'How APIs work')
+            ->assertJsonPath('data.grounding.enabled', false)
+            ->assertJsonCount(4, 'data.quiz');
+        Http::assertSent(fn (ClientRequest $request): bool => isset($request->data()['contents'])
+            && ! array_key_exists('tools', $request->data()));
         $this->assertDatabaseHas('lessons', ['topic' => 'How APIs work']);
 
         $this->postJson('/api/lessons/'.$response->json('data.id').'/doubts', [
@@ -63,6 +70,46 @@ class LessonApiTest extends TestCase
             ->assertJsonPath('0.report.next_step', 'Add one sentence about the server response.');
         $this->getJson('/api/lessons/'.$response->json('data.id').'/teach-back-attempts?client_id=da8c6b5b-1a63-4bf1-9e7b-9ba48079f148')
             ->assertNotFound();
+    }
+
+    public function test_google_search_grounding_is_only_requested_when_enabled(): void
+    {
+        config([
+            'services.gemini.key' => 'test-key',
+            'services.gemini.grounding_enabled' => true,
+        ]);
+        Http::fake([
+            '*' => Http::response([
+                'candidates' => [[
+                    'content' => [
+                        'parts' => [['text' => json_encode($this->lessonPayload())]],
+                    ],
+                    'groundingMetadata' => [
+                        'groundingChunks' => [[
+                            'web' => [
+                                'title' => 'HTTP Semantics',
+                                'uri' => 'https://www.rfc-editor.org/rfc/rfc9110',
+                            ],
+                        ]],
+                        'webSearchQueries' => ['HTTP request semantics'],
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $response = $this->postJson('/api/lessons', [
+            'client_id' => 'b7bd2ea5-a7ca-46de-b4e6-69d1a683389f',
+            'topic' => 'How APIs work',
+            'level' => 'Beginner',
+            'format' => 'Group chat',
+            'drama' => 3,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.grounding.enabled', true)
+            ->assertJsonPath('data.grounding.sourceCount', 1)
+            ->assertJsonPath('data.grounding.searchQueries.0', 'HTTP request semantics');
+        Http::assertSent(fn (ClientRequest $request): bool => data_get($request->data(), 'tools.0.google_search') !== null);
     }
 
     private function lessonPayload(): array

@@ -19,15 +19,23 @@ class GeminiLessonGenerator
             throw new RuntimeException('Gemini API key is not configured.');
         }
 
+        $payload = [
+            'contents' => [['parts' => [['text' => $this->prompt->build($input)]]]],
+            'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.65],
+        ];
+        if (config('services.gemini.grounding_enabled')) {
+            $payload['tools'] = [['google_search' => (object) []]];
+        }
+
         try {
             $response = Http::timeout(90)->retry(2, 500)->post(
                 "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$key}",
-                ['contents' => [['parts' => [['text' => $this->prompt->build($input)]]]], 'tools' => [['google_search' => (object) []]], 'generationConfig' => ['responseMimeType' => 'application/json', 'temperature' => 0.65]],
+                $payload,
             )->throw();
         } catch (RequestException $exception) {
             if ($exception->response->status() === 429) {
                 throw new HttpResponseException(response()->json([
-                    'message' => 'Gemini Search quota is currently exhausted. Check the API project quota or try again later.',
+                    'message' => 'Gemini API quota is currently exhausted. Check the model quota and, if enabled, Google Search grounding quota, or try again later.',
                     'retryable' => true,
                 ], 429));
             }
@@ -53,10 +61,11 @@ class GeminiLessonGenerator
         if ($groundedSources !== []) {
             $data['sources'] = $groundedSources;
         }
+        $searchQueries = $grounding['webSearchQueries'] ?? [];
         $data['grounding'] = [
-            'enabled' => true,
-            'searchQueries' => $grounding['webSearchQueries'] ?? [],
-            'sourceCount' => count($data['sources'] ?? []),
+            'enabled' => $groundedSources !== [] || $searchQueries !== [],
+            'searchQueries' => $searchQueries,
+            'sourceCount' => count($groundedSources),
         ];
 
         return $data;

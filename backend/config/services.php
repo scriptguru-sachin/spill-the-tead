@@ -38,6 +38,7 @@ return [
     'gemini' => [
         'key' => env('GEMINI_API_KEY'),
         'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+        'grounding_enabled' => filter_var(env('GEMINI_GROUNDING_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
     ],
 
 ];
