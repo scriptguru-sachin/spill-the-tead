@@ -27,7 +27,6 @@ import {
   RotateCcw,
   Send,
   Sparkles,
-  Square,
   ThumbsDown,
   ThumbsUp,
   Volume2,
@@ -263,9 +262,18 @@ export default function App() {
   const [historyExpanded, setHistoryExpanded] = useState(true);
   const [gossipIndex, setGossipIndex] = useState(0);
   const [visibleText, setVisibleText] = useState("");
+  const [typedMessageKey, setTypedMessageKey] = useState(null);
   const [autoplay, setAutoplay] = useState(false);
+  const [speechEnabled, setSpeechEnabled] = useState(false);
   const [speechPlaying, setSpeechPlaying] = useState(false);
+  const [speechError, setSpeechError] = useState("");
   const speechUtterance = useRef(null);
+  const speechUtteranceKey = useRef(null);
+  const autoplayAdvancePending = useRef(null);
+  const autoplayRef = useRef(autoplay);
+  const lessonRef = useRef(lesson);
+  const gossipIndexRef = useRef(gossipIndex);
+  const currentSpeechMessageKeyRef = useRef(null);
   const [factIndex, setFactIndex] = useState(0);
   const [doubtCharacter, setDoubtCharacter] = useState(null);
   const [doubt, setDoubt] = useState("");
@@ -298,34 +306,64 @@ export default function App() {
   }, [lesson?.id]);
   useEffect(() => {
     if (!lesson || tab !== "gossip") return;
-    const text = lesson.conversation[gossipIndex]?.text || "";
+    const message = lesson.conversation[gossipIndex];
+    const text = message?.text || "";
+    const messageKey = message?.id ?? `${lesson.id}:${gossipIndex}`;
     setVisibleText("");
+    setTypedMessageKey(null);
     let cursor = 0;
     const timer = setInterval(() => {
       cursor += 1;
       setVisibleText(text.slice(0, cursor));
-      if (cursor >= text.length) clearInterval(timer);
+      if (cursor >= text.length) {
+        clearInterval(timer);
+        setTypedMessageKey(messageKey);
+      }
     }, 34);
     return () => clearInterval(timer);
   }, [lesson?.id, gossipIndex, tab]);
+  function advanceAutoplay(messageKey) {
+    const currentLesson = lessonRef.current;
+    const currentIndex = gossipIndexRef.current;
+    if (
+      !autoplayRef.current ||
+      currentSpeechMessageKeyRef.current !== messageKey ||
+      !currentLesson?.conversation?.length
+    )
+      return;
+    if (currentIndex < currentLesson.conversation.length - 1) {
+      setGossipIndex((index) => index + 1);
+      setDoubtCharacter(null);
+      setDoubtReply("");
+    } else {
+      setAutoplay(false);
+      setConversationComplete(true);
+    }
+  }
+
   useEffect(() => {
     if (!autoplay || !lesson || tab !== "gossip") return;
-    const text = lesson.conversation[gossipIndex]?.text || "";
+    const message = lesson.conversation[gossipIndex];
+    const text = message?.text || "";
+    const messageKey = message?.id ?? `${lesson.id}:${gossipIndex}`;
     if (visibleText.length < text.length) return;
     const readingTime = Math.max(
       3600,
       Math.min(8000, text.split(/\s+/).length * 360),
     );
     const timer = setTimeout(() => {
-      if (gossipIndex < lesson.conversation.length - 1)
-        setGossipIndex((i) => i + 1);
-      else {
-        setAutoplay(false);
-        setConversationComplete(true);
+      if (
+        speechEnabled &&
+        speechUtterance.current &&
+        speechUtteranceKey.current === messageKey
+      ) {
+        autoplayAdvancePending.current = messageKey;
+        return;
       }
+      advanceAutoplay(messageKey);
     }, readingTime);
     return () => clearTimeout(timer);
-  }, [autoplay, visibleText, gossipIndex, lesson, tab]);
+  }, [autoplay, speechEnabled, visibleText, gossipIndex, lesson, tab]);
   useEffect(() => {
     if (
       !autoplay ||
@@ -346,6 +384,7 @@ export default function App() {
 
   async function generate(chosen = topic) {
     if (!chosen.trim() || loading) return;
+    cancelSpeech();
     setLoading(true);
     setError("");
     setLesson(null);
@@ -375,9 +414,11 @@ export default function App() {
   }
 
   async function openLesson(id) {
+    cancelSpeech();
     try {
       setLoading(true);
-      setLesson(await api(`/lessons/${id}`));
+      const data = await api(`/lessons/${id}`);
+      setLesson(data);
       setTab("gossip");
       setSidebar(false);
       setAnswers({});
@@ -408,6 +449,7 @@ export default function App() {
 
   async function createFollowUp(mode) {
     if (followLoading) return;
+    cancelSpeech();
     setFollowLoading(mode);
     setError("");
     try {
@@ -517,9 +559,80 @@ export default function App() {
   );
 
   const currentMessage = lesson?.conversation?.[gossipIndex];
+  const currentSpeechMessageKey = currentMessage
+    ? currentMessage.id ?? `${lesson.id}:${gossipIndex}`
+    : null;
+  autoplayRef.current = autoplay;
+  lessonRef.current = lesson;
+  gossipIndexRef.current = gossipIndex;
+  currentSpeechMessageKeyRef.current = currentSpeechMessageKey;
   const currentSpeaker = currentMessage
     ? cast[currentMessage.characterId] || {}
     : {};
+  useEffect(() => {
+    if (
+      !speechEnabled ||
+      !lesson ||
+      tab !== "gossip" ||
+      conversationComplete
+    )
+      return;
+    const text = currentMessage?.text || "";
+    if (
+      !text ||
+      typedMessageKey !== currentSpeechMessageKey ||
+      visibleText.length < text.length ||
+      speechUtterance.current
+    )
+      return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    speechUtterance.current = utterance;
+    speechUtteranceKey.current = currentSpeechMessageKey;
+    setSpeechPlaying(true);
+    utterance.onend = () => {
+      if (speechUtterance.current !== utterance) return;
+      speechUtterance.current = null;
+      speechUtteranceKey.current = null;
+      setSpeechPlaying(false);
+      if (autoplayAdvancePending.current === currentSpeechMessageKey) {
+        autoplayAdvancePending.current = null;
+        advanceAutoplay(currentSpeechMessageKey);
+      }
+    };
+    utterance.onerror = (event) => {
+      if (speechUtterance.current !== utterance) return;
+      speechUtterance.current = null;
+      speechUtteranceKey.current = null;
+      setSpeechPlaying(false);
+      if (event.error !== "canceled" && event.error !== "interrupted")
+        setSpeechError(
+          "Speech playback stopped unexpectedly. Please try again.",
+        );
+      if (autoplayAdvancePending.current === currentSpeechMessageKey) {
+        autoplayAdvancePending.current = null;
+        advanceAutoplay(currentSpeechMessageKey);
+      }
+    };
+    window.speechSynthesis.speak(utterance);
+    return () => {
+      if (speechUtterance.current !== utterance) return;
+      speechUtterance.current = null;
+      speechUtteranceKey.current = null;
+      window.speechSynthesis.cancel();
+      setSpeechPlaying(false);
+    };
+  }, [
+    speechEnabled,
+    lesson,
+    tab,
+    conversationComplete,
+    currentMessage,
+    currentSpeechMessageKey,
+    typedMessageKey,
+    visibleText,
+    gossipIndex,
+  ]);
   useEffect(() => {
     predictionRequest.current += 1;
     setPredictionDraft("");
@@ -532,46 +645,28 @@ export default function App() {
     gossipIndex === lesson.conversation.length - 1 &&
     visibleText.length === (currentMessage?.text || "").length;
 
-  useEffect(() => {
+  function cancelSpeech() {
+    autoplayAdvancePending.current = null;
+    speechUtterance.current = null;
+    speechUtteranceKey.current = null;
     setSpeechPlaying(false);
-    return () => {
-      speechUtterance.current = null;
-      if (typeof window !== "undefined" && "speechSynthesis" in window)
-        window.speechSynthesis.cancel();
-    };
-  }, [lesson?.id, gossipIndex, tab]);
-
-  function toggleMessageSpeech() {
-    if (
-      typeof window === "undefined" ||
-      !("speechSynthesis" in window) ||
-      !currentMessage?.text
-    )
-      return;
-    if (speechPlaying) {
-      speechUtterance.current = null;
+    if (typeof window !== "undefined" && "speechSynthesis" in window)
       window.speechSynthesis.cancel();
-      setSpeechPlaying(false);
-      return;
-    }
+  }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(currentMessage.text);
-    speechUtterance.current = utterance;
-    utterance.onend = () => {
-      if (speechUtterance.current === utterance) {
-        speechUtterance.current = null;
-        setSpeechPlaying(false);
-      }
-    };
-    utterance.onerror = () => {
-      if (speechUtterance.current === utterance) {
-        speechUtterance.current = null;
-        setSpeechPlaying(false);
-      }
-    };
-    setSpeechPlaying(true);
-    window.speechSynthesis.speak(utterance);
+  function toggleSpeech() {
+    setSpeechError("");
+    if (speechEnabled) {
+      const pendingAdvance = autoplayAdvancePending.current;
+      cancelSpeech();
+      setSpeechEnabled(false);
+      if (pendingAdvance) advanceAutoplay(pendingAdvance);
+    } else if (
+      typeof window !== "undefined" &&
+      "speechSynthesis" in window
+    ) {
+      setSpeechEnabled(true);
+    }
   }
 
   return (
@@ -595,6 +690,7 @@ export default function App() {
         <button
           className="new-tea"
           onClick={() => {
+            cancelSpeech();
             setLesson(null);
             setTopic("");
             setSidebar(false);
@@ -871,7 +967,12 @@ export default function App() {
                   </div>
                 )}
               </div>
-              <button onClick={() => setLesson(null)}>
+              <button
+                onClick={() => {
+                  cancelSpeech();
+                  setLesson(null);
+                }}
+              >
                 <Sparkles /> New topic
               </button>
             </div>
@@ -901,7 +1002,10 @@ export default function App() {
                 <button
                   key={id}
                   className={tab === id ? "active" : ""}
-                  onClick={() => setTab(id)}
+                  onClick={() => {
+                    if (id !== tab) cancelSpeech();
+                    setTab(id);
+                  }}
                 >
                   <Icon size={17} />
                   {label}
@@ -921,6 +1025,34 @@ export default function App() {
                       {gossipIndex + 1} / {lesson.conversation.length}
                     </small>
                     <button
+                      className={`conversation-speech ${speechEnabled ? "on" : ""}`}
+                      onClick={toggleSpeech}
+                      disabled={
+                        typeof window !== "undefined" &&
+                        !("speechSynthesis" in window)
+                      }
+                      aria-label={
+                        speechEnabled
+                          ? "Turn conversation read aloud off"
+                          : "Turn conversation read aloud on"
+                      }
+                      aria-pressed={speechEnabled}
+                      title={
+                        typeof window !== "undefined" &&
+                        !("speechSynthesis" in window)
+                          ? "Text-to-speech is not supported in this browser"
+                          : undefined
+                      }
+                    >
+                      <Volume2 />
+                      Read aloud: {speechEnabled ? "On" : "Off"}
+                    </button>
+                    {speechPlaying && (
+                      <small className="speech-speaking" aria-live="polite">
+                        Speaking
+                      </small>
+                    )}
+                    <button
                       className={autoplay ? "on" : ""}
                       onClick={() => setAutoplay((x) => !x)}
                     >
@@ -928,6 +1060,11 @@ export default function App() {
                     </button>
                   </div>
                 </div>
+                {speechError && (
+                  <p className="speech-error" role="alert">
+                    {speechError}
+                  </p>
+                )}
                 {!conversationComplete ? (
                   <>
                     <div className="conversation-arena">
@@ -959,30 +1096,6 @@ export default function App() {
                               <small>
                                 {String(gossipIndex + 1).padStart(2, "0")}
                               </small>
-                              <button
-                                className="speak-message"
-                                onClick={toggleMessageSpeech}
-                                disabled={
-                                  !currentMessage?.text ||
-                                  (typeof window !== "undefined" &&
-                                    !("speechSynthesis" in window))
-                                }
-                                aria-label={
-                                  speechPlaying
-                                    ? "Stop reading message aloud"
-                                    : "Read message aloud"
-                                }
-                                aria-pressed={speechPlaying}
-                                title={
-                                  typeof window !== "undefined" &&
-                                  !("speechSynthesis" in window)
-                                    ? "Text-to-speech is not supported in this browser"
-                                    : undefined
-                                }
-                              >
-                                {speechPlaying ? <Square /> : <Volume2 />}
-                                {speechPlaying ? "Stop" : "Listen"}
-                              </button>
                             </div>
                             <p>
                               {visibleText}
@@ -1163,6 +1276,7 @@ export default function App() {
                       <button
                         disabled={gossipIndex === 0}
                         onClick={() => {
+                          cancelSpeech();
                           setGossipIndex((i) => i - 1);
                           setDoubtCharacter(null);
                         }}
@@ -1181,11 +1295,14 @@ export default function App() {
                         className="next-line"
                         onClick={() => {
                           const full = currentMessage?.text || "";
-                          if (visibleText.length < full.length)
+                          if (visibleText.length < full.length) {
                             setVisibleText(full);
-                          else if (lastMessageReady)
+                            setTypedMessageKey(currentSpeechMessageKey);
+                          } else if (lastMessageReady) {
+                            cancelSpeech();
                             setConversationComplete(true);
-                          else {
+                          } else {
+                            cancelSpeech();
                             setGossipIndex((i) => i + 1);
                             setDoubtCharacter(null);
                             setDoubtReply("");
