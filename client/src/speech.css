@@ -1,0 +1,30 @@
+.speaker .speak-message {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  padding: 4px 8px;
+  border: 1px solid #d5c8b8;
+  border-radius: 14px;
+  background: #fff9f0;
+  color: #a64d31;
+  font-size: 9px;
+}
+
+.speaker .speak-message svg {
+  width: 12px;
+  height: 12px;
+}
+
+.speaker .speak-message:hover:not(:disabled) {
+  background: #f8e4db;
+}
+
+.speaker .speak-message[aria-pressed="true"] {
+  background: #f8e4db;
+}
+
+.speaker .speak-message:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
