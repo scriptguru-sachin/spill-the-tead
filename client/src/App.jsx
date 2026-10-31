@@ -218,6 +218,11 @@ export default function App() {
   const [doubtReply, setDoubtReply] = useState("");
   const [doubtLoading, setDoubtLoading] = useState(false);
   const [doubtHistory, setDoubtHistory] = useState([]);
+  const [predictionDraft, setPredictionDraft] = useState("");
+  const [predictionFeedback, setPredictionFeedback] = useState("");
+  const [predictionError, setPredictionError] = useState("");
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const predictionRequest = useRef(0);
   const [conversationComplete, setConversationComplete] = useState(false);
   const [followLoading, setFollowLoading] = useState("");
 
@@ -414,6 +419,44 @@ export default function App() {
     }
   }
 
+  async function submitPrediction(event) {
+    event.preventDefault();
+    const prediction = predictionDraft.trim();
+    if (
+      !prediction ||
+      predictionLoading ||
+      !currentMessage?.reflectionPrompt ||
+      !currentSpeaker.id
+    )
+      return;
+
+    setPredictionLoading(true);
+    setPredictionError("");
+    setPredictionFeedback("");
+    const requestId = ++predictionRequest.current;
+    try {
+      const data = await api(`/lessons/${lesson.id}/doubts`, {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: clientId,
+          message_id: currentMessage.id || null,
+          character_id: currentSpeaker.id,
+          question: `For "${currentMessage.reflectionPrompt}", my prediction is: "${prediction}". Respond to my specific prediction in a supportive, conversational teaching tone. Tell me what I got right, gently correct anything I misunderstood, and explain the accurate concept.`,
+        }),
+      });
+      if (typeof data.answer !== "string" || !data.answer.trim())
+        throw new Error("The character couldn't check that prediction. Please try again.");
+      if (requestId === predictionRequest.current) {
+        setPredictionFeedback(data.answer);
+        setDoubtHistory((items) => [...items, data]);
+      }
+    } catch (e) {
+      if (requestId === predictionRequest.current) setPredictionError(e.message);
+    } finally {
+      if (requestId === predictionRequest.current) setPredictionLoading(false);
+    }
+  }
+
   const cast = useMemo(
     () => Object.fromEntries((lesson?.characters || []).map((c) => [c.id, c])),
     [lesson],
@@ -423,6 +466,13 @@ export default function App() {
   const currentSpeaker = currentMessage
     ? cast[currentMessage.characterId] || {}
     : {};
+  useEffect(() => {
+    predictionRequest.current += 1;
+    setPredictionDraft("");
+    setPredictionFeedback("");
+    setPredictionError("");
+    setPredictionLoading(false);
+  }, [lesson?.id, currentMessage?.id]);
   const lastMessageReady =
     lesson &&
     gossipIndex === lesson.conversation.length - 1 &&
@@ -860,7 +910,71 @@ export default function App() {
                                 currentMessage.text.length && (
                                 <div className="reflection-cue">
                                   <b>Your turn to predict</b>
-                                  {currentMessage.reflectionPrompt}
+                                  <p className="prediction-question">
+                                    {currentMessage.reflectionPrompt}
+                                  </p>
+                                  <form
+                                    className="prediction-form"
+                                    onSubmit={submitPrediction}
+                                  >
+                                    <label
+                                      className="sr-only"
+                                      htmlFor="prediction-answer"
+                                    >
+                                      Your prediction
+                                    </label>
+                                    <textarea
+                                      id="prediction-answer"
+                                      value={predictionDraft}
+                                      disabled={predictionLoading}
+                                      onChange={(event) => {
+                                        setPredictionDraft(event.target.value);
+                                        setPredictionFeedback("");
+                                        setPredictionError("");
+                                      }}
+                                      placeholder="Share what you think will happen and why…"
+                                      maxLength={500}
+                                      rows={2}
+                                    />
+                                    <button
+                                      type="submit"
+                                      disabled={
+                                        !predictionDraft.trim() ||
+                                        predictionLoading
+                                      }
+                                    >
+                                      {predictionLoading ? (
+                                        <LoaderCircle className="spin" />
+                                      ) : (
+                                        <Send />
+                                      )}
+                                      {predictionLoading
+                                        ? "Checking…"
+                                        : "Check my prediction"}
+                                    </button>
+                                  </form>
+                                  {predictionError && (
+                                    <p
+                                      className="prediction-error"
+                                      role="alert"
+                                    >
+                                      {predictionError}
+                                    </p>
+                                  )}
+                                  {predictionFeedback && (
+                                    <div
+                                      className="prediction-feedback"
+                                      aria-live="polite"
+                                    >
+                                      <span>{currentSpeaker.avatar}</span>
+                                      <div>
+                                        <b>
+                                          {currentSpeaker.name}'s feedback
+                                        </b>
+                                        <p>{predictionFeedback}</p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                           </div>
