@@ -17,6 +17,7 @@ import {
   CircleHelp,
   Coffee,
   ExternalLink,
+  FileText,
   History,
   LoaderCircle,
   Menu,
@@ -95,10 +96,24 @@ const topicCategories = [
 ];
 const tabs = [
   { id: "gossip", label: "The gossip", icon: MessageCircle },
+  { id: "technical", label: "Technical explanation", icon: FileText },
   { id: "facts", label: "Reality check", icon: BookOpen },
   { id: "visual", label: "Concept map", icon: Network },
   { id: "quiz", label: "Quick quiz", icon: CircleHelp },
 ];
+
+function getTeachBackResponse(question) {
+  if (typeof question !== "string" || !question.startsWith("TEACH_BACK:"))
+    return null;
+  const end = question.indexOf("\n");
+  if (end < 0) return null;
+  try {
+    const submission = JSON.parse(question.slice("TEACH_BACK:".length, end));
+    return typeof submission.response === "string" ? submission.response : null;
+  } catch {
+    return null;
+  }
+}
 
 function getClientId() {
   let id = localStorage.getItem("spill-client-id");
@@ -263,6 +278,7 @@ export default function App() {
   const [gossipIndex, setGossipIndex] = useState(0);
   const [visibleText, setVisibleText] = useState("");
   const [typedMessageKey, setTypedMessageKey] = useState(null);
+  const typingTimerRef = useRef(null);
   const [autoplay, setAutoplay] = useState(false);
   const [autoplayPaused, setAutoplayPaused] = useState(false);
   const [autoplayCountdown, setAutoplayCountdown] = useState(null);
@@ -290,6 +306,11 @@ export default function App() {
   const [predictionError, setPredictionError] = useState("");
   const [predictionLoading, setPredictionLoading] = useState(false);
   const predictionRequest = useRef(0);
+  const [teachBackDraft, setTeachBackDraft] = useState("");
+  const [teachBackReply, setTeachBackReply] = useState("");
+  const [teachBackError, setTeachBackError] = useState("");
+  const [teachBackLoading, setTeachBackLoading] = useState(false);
+  const teachBackRequest = useRef(0);
   const [conversationComplete, setConversationComplete] = useState(false);
   const [followLoading, setFollowLoading] = useState("");
 
@@ -310,6 +331,11 @@ export default function App() {
     autoplayTimerRef.current = null;
     setDoubtCharacter(null);
     setDoubtReply("");
+    teachBackRequest.current += 1;
+    setTeachBackDraft("");
+    setTeachBackReply("");
+    setTeachBackError("");
+    setTeachBackLoading(false);
     setConversationComplete(false);
   }, [lesson?.id]);
   useEffect(() => {
@@ -317,18 +343,28 @@ export default function App() {
     const message = lesson.conversation[gossipIndex];
     const text = message?.text || "";
     const messageKey = message?.id ?? `${lesson.id}:${gossipIndex}`;
+    if (typingTimerRef.current) clearInterval(typingTimerRef.current);
     setVisibleText("");
     setTypedMessageKey(null);
+    if (!text) {
+      setTypedMessageKey(messageKey);
+      return;
+    }
     let cursor = 0;
     const timer = setInterval(() => {
       cursor += 1;
       setVisibleText(text.slice(0, cursor));
       if (cursor >= text.length) {
         clearInterval(timer);
+        typingTimerRef.current = null;
         setTypedMessageKey(messageKey);
       }
     }, 34);
-    return () => clearInterval(timer);
+    typingTimerRef.current = timer;
+    return () => {
+      clearInterval(timer);
+      if (typingTimerRef.current === timer) typingTimerRef.current = null;
+    };
   }, [lesson?.id, gossipIndex, tab]);
   function advanceAutoplay(messageKey) {
     const currentLesson = lessonRef.current;
@@ -616,6 +652,51 @@ export default function App() {
     }
   }
 
+  async function submitTeachBack(event) {
+    event.preventDefault();
+    const response = teachBackDraft.trim();
+    const coach = lesson?.characters?.[0];
+    if (!response || !coach?.id || teachBackLoading) return;
+
+    const question =
+      `TEACH_BACK:${JSON.stringify({ response })}\n` +
+      `Review this explanation against the lesson. Give specific supportive feedback: ` +
+      `identify what's accurate, missing or mistaken; gently correct errors; suggest ` +
+      `one improvement. No grade. Invite revision.`;
+    if (Array.from(question).length > 500) {
+      setTeachBackError("Please shorten your explanation and try again.");
+      return;
+    }
+
+    setTeachBackLoading(true);
+    setTeachBackError("");
+    setTeachBackReply("");
+    const requestId = ++teachBackRequest.current;
+    try {
+      const data = await api(`/lessons/${lesson.id}/doubts`, {
+        method: "POST",
+        body: JSON.stringify({
+          client_id: clientId,
+          message_id: null,
+          character_id: coach.id,
+          question,
+        }),
+      });
+      if (typeof data.answer !== "string" || !data.answer.trim())
+        throw new Error("Feedback wasn't available. Please try again.");
+      if (requestId === teachBackRequest.current) {
+        setTeachBackReply(data.answer);
+        setDoubtHistory((items) => [...items, data]);
+      }
+    } catch (e) {
+      if (requestId === teachBackRequest.current)
+        setTeachBackError(e.message);
+    } finally {
+      if (requestId === teachBackRequest.current)
+        setTeachBackLoading(false);
+    }
+  }
+
   const cast = useMemo(
     () => Object.fromEntries((lesson?.characters || []).map((c) => [c.id, c])),
     [lesson],
@@ -712,7 +793,17 @@ export default function App() {
   const lastMessageReady =
     lesson &&
     gossipIndex === lesson.conversation.length - 1 &&
-    visibleText.length === (currentMessage?.text || "").length;
+    typedMessageKey === currentSpeechMessageKey &&
+    visibleText.length >= (currentMessage?.text || "").length;
+
+  function showFullMessage() {
+    if (typingTimerRef.current) {
+      clearInterval(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+    setVisibleText(currentMessage?.text || "");
+    setTypedMessageKey(currentSpeechMessageKey);
+  }
 
   function cancelSpeech() {
     autoplayAdvancePending.current = null;
@@ -1442,9 +1533,11 @@ export default function App() {
                         className="next-line"
                         onClick={() => {
                           const full = currentMessage?.text || "";
-                          if (visibleText.length < full.length) {
-                            setVisibleText(full);
-                            setTypedMessageKey(currentSpeechMessageKey);
+                          if (
+                            typedMessageKey !== currentSpeechMessageKey ||
+                            visibleText.length < full.length
+                          ) {
+                            showFullMessage();
                           } else if (lastMessageReady) {
                             cancelSpeech();
                             setAutoplay(false);
@@ -1458,8 +1551,9 @@ export default function App() {
                           }
                         }}
                       >
-                        {visibleText.length <
-                        (currentMessage?.text || "").length
+                        {typedMessageKey !== currentSpeechMessageKey ||
+                        visibleText.length <
+                          (currentMessage?.text || "").length
                           ? "Show full message"
                           : lastMessageReady
                             ? "Finish & review"
@@ -1493,7 +1587,9 @@ export default function App() {
                     {lesson.conversation.map((m, i) => {
                       const c = cast[m.characterId] || {};
                       const messageDoubts = doubtHistory.filter(
-                        (item) => item.message_id === m.id,
+                        (item) =>
+                          item.message_id === m.id &&
+                          !getTeachBackResponse(item.question),
                       );
                       return (
                         <div className="transcript-item" key={m.id || i}>
@@ -1651,6 +1747,133 @@ export default function App() {
                     </div>
                   </div>
                 )}
+              </section>
+            )}
+            {tab === "technical" && (
+              <section className="technical-explanation">
+                <div className="technical-heading">
+                  <span>THE SYSTEM, WITHOUT THE STORY</span>
+                  <h2>{lesson.topic}</h2>
+                  <p>{lesson.topicSummary}</p>
+                  <small>
+                    A direct explanation at the {lesson.level.toLowerCase()}{" "}
+                    level. These concepts describe how the real system works;
+                    story analogies are left behind.
+                  </small>
+                </div>
+                <div className="technical-concepts">
+                  <div className="technical-section-heading">
+                    <span>CORE MECHANICS</span>
+                    <h3>How the parts work together</h3>
+                  </div>
+                  {(lesson.realityCheck || []).map((item, index) => (
+                    <article className="technical-concept" key={`${item.concept}-${index}`}>
+                      <span className="technical-step">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div>
+                        <h4>{item.concept}</h4>
+                        <p>{item.actualMeaning}</p>
+                      </div>
+                      {index < lesson.realityCheck.length - 1 && (
+                        <span className="technical-connector" aria-hidden="true" />
+                      )}
+                    </article>
+                  ))}
+                  {!lesson.realityCheck?.length && (
+                    <p className="technical-empty">
+                      A detailed technical explanation is not available for
+                      this lesson yet.
+                    </p>
+                  )}
+                </div>
+                <section className="teach-back">
+                  <div className="technical-section-heading">
+                    <span>MAKE IT YOURS</span>
+                    <h3>Explain it in your own words</h3>
+                    <p>
+                      Try describing how the system works. Get supportive,
+                      specific feedback, then revise and try again. This is
+                      practice—not a grade.
+                    </p>
+                  </div>
+                  <form className="teach-back-form" onSubmit={submitTeachBack}>
+                    <label className="sr-only" htmlFor="teach-back-response">
+                      Explain the topic in your own words
+                    </label>
+                    <textarea
+                      id="teach-back-response"
+                      value={teachBackDraft}
+                      onChange={(event) => {
+                        setTeachBackDraft(event.target.value);
+                        setTeachBackReply("");
+                        setTeachBackError("");
+                      }}
+                      placeholder="What are the key parts, and how do they work together?"
+                      maxLength={250}
+                      rows={4}
+                    />
+                    <div className="teach-back-actions">
+                      <small>{teachBackDraft.length}/250</small>
+                      <button
+                        type="submit"
+                        disabled={!teachBackDraft.trim() || teachBackLoading}
+                      >
+                        {teachBackLoading ? (
+                          <LoaderCircle className="spin" />
+                        ) : (
+                          <Send />
+                        )}
+                        {teachBackLoading ? "Reviewing…" : "Get feedback"}
+                      </button>
+                    </div>
+                  </form>
+                  {teachBackError && (
+                    <p className="teach-back-error" role="alert">
+                      {teachBackError}
+                    </p>
+                  )}
+                  {teachBackReply && (
+                    <div className="teach-back-feedback" aria-live="polite">
+                      <span>
+                        {lesson.characters?.[0]?.avatar || <Sparkles />}
+                      </span>
+                      <div>
+                        <b>Feedback to help you refine it</b>
+                        <p>{teachBackReply}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="teach-back-history">
+                    <h3>Your previous explanations</h3>
+                    {doubtHistory
+                      .filter((item) => getTeachBackResponse(item.question))
+                      .slice()
+                      .reverse()
+                      .map((attempt) => (
+                        <article
+                          className="teach-back-attempt"
+                          key={attempt.id}
+                        >
+                          <div>
+                            <b>Your explanation</b>
+                            <p>{getTeachBackResponse(attempt.question)}</p>
+                          </div>
+                          <div>
+                            <b>Feedback</b>
+                            <p>{attempt.answer}</p>
+                          </div>
+                        </article>
+                      ))}
+                    {!doubtHistory.some((item) =>
+                      getTeachBackResponse(item.question),
+                    ) && (
+                      <p className="teach-back-empty">
+                        Your submissions and feedback will appear here.
+                      </p>
+                    )}
+                  </div>
+                </section>
               </section>
             )}
             {tab === "facts" && (

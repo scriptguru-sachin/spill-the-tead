@@ -1,0 +1,268 @@
+.technical-explanation {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid #d4c8b8;
+  background: #fffaf1;
+}
+
+.technical-heading {
+  padding: 22px;
+  border-left: 3px solid #d45e37;
+  background: #f2eadd;
+}
+
+.technical-heading > span,
+.technical-section-heading > span {
+  color: #a64d31;
+  font: 8px "DM Mono", monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.technical-heading h2 {
+  margin: 7px 0;
+  font: 700 clamp(22px, 3vw, 32px) "Fraunces", serif;
+}
+
+.technical-heading p {
+  max-width: 760px;
+  margin: 0;
+  color: #554c42;
+  font: 500 14px/1.7 "Fraunces", serif;
+}
+
+.technical-heading small {
+  display: block;
+  margin-top: 12px;
+  color: #74695e;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.technical-concepts,
+.teach-back {
+  margin-top: 22px;
+}
+
+.technical-section-heading {
+  margin-bottom: 12px;
+}
+
+.technical-section-heading h3,
+.teach-back-history > h3 {
+  margin: 4px 0;
+  font: 700 20px "Fraunces", serif;
+}
+
+.technical-section-heading > p {
+  margin: 6px 0 0;
+  color: #756b60;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.technical-concept {
+  position: relative;
+  display: grid;
+  grid-template-columns: 35px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e3d8c9;
+  background: #fcf8f0;
+}
+
+.technical-concept + .technical-concept {
+  margin-top: 8px;
+}
+
+.technical-step {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8eee8;
+  color: #315d48;
+  font: 9px "DM Mono", monospace;
+}
+
+.technical-concept h4 {
+  margin: 0 0 5px;
+  font: 700 15px "Fraunces", serif;
+}
+
+.technical-concept p {
+  margin: 0;
+  color: #5f574e;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.technical-empty,
+.teach-back-empty {
+  color: #756b60;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.teach-back {
+  padding: 18px;
+  border: 1px solid #dfd2c1;
+  background: #f8f1e7;
+}
+
+.teach-back-form textarea {
+  display: block;
+  width: 100%;
+  min-height: 95px;
+  resize: vertical;
+  border: 1px solid #d5c8b8;
+  border-radius: 4px;
+  background: #fffdf9;
+  color: #29251f;
+  padding: 11px 12px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.teach-back-form textarea:focus {
+  outline: 2px solid #d45e3766;
+  border-color: #b35a3c;
+}
+
+.teach-back-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.teach-back-actions small {
+  color: #83786c;
+  font: 9px "DM Mono", monospace;
+}
+
+.teach-back-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 4px;
+  background: #d45e37;
+  color: #fff;
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.teach-back-actions button:hover:not(:disabled) {
+  background: #b84d2d;
+}
+
+.teach-back-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.teach-back-actions button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.teach-back-feedback {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+  padding: 13px;
+  border-left: 3px solid #63816a;
+  background: #edf2eb;
+  animation: rise 0.3s ease-out;
+}
+
+.teach-back-feedback > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dce8dd;
+  font-size: 19px;
+}
+
+.teach-back-feedback > span svg {
+  width: 17px;
+  color: #315d48;
+}
+
+.teach-back-feedback b,
+.teach-back-attempt b {
+  display: block;
+  margin-bottom: 4px;
+  color: #39483c;
+  font-size: 10px;
+}
+
+.teach-back-feedback p,
+.teach-back-attempt p {
+  margin: 0;
+  color: #4e594f;
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.teach-back-error {
+  margin: 9px 0 0;
+  color: #a33424;
+  font-size: 10px;
+}
+
+.teach-back-history {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #dfd2c1;
+}
+
+.teach-back-history > h3 {
+  font-size: 16px;
+}
+
+.teach-back-attempt {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 13px;
+  border: 1px solid #e2d7c8;
+  background: #fffaf1;
+}
+
+.teach-back-attempt > div:first-child {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee4d7;
+}
+
+.teach-back-attempt > div:first-child b {
+  color: #76533f;
+}
+
+@media (max-width: 620px) {
+  .technical-explanation {
+    padding: 14px;
+  }
+
+  .technical-heading {
+    padding: 16px;
+  }
+
+  .technical-heading p {
+    font-size: 12px;
+  }
+
+  .teach-back {
+    padding: 14px;
+  }
+}
