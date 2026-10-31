@@ -5,6 +5,7 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import "./speech.css";
 import "./prediction.css";
+import "./topics.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode><App /></React.StrictMode>

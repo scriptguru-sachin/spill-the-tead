@@ -1,0 +1,121 @@
+.topic-explorer {
+  margin: 28px auto 0;
+  width: min(100%, 920px);
+  padding: 22px;
+  border: 1px solid #dfd2c1;
+  border-radius: 12px;
+  background: #f8f1e7;
+}
+
+.topic-explorer-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.topic-explorer-heading > div > span,
+.topic-audience > span {
+  color: #a64d31;
+  font: 8px "DM Mono", monospace;
+  letter-spacing: 1px;
+}
+
+.topic-explorer-heading h2 {
+  margin: 5px 0;
+  font: 700 22px "Fraunces", serif;
+}
+
+.topic-explorer-heading p {
+  margin: 0;
+  color: #756b60;
+  font-size: 11px;
+}
+
+.topic-audience {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 150px;
+}
+
+.topic-audience select {
+  min-height: 36px;
+  border: 1px solid #d5c8b8;
+  border-radius: 5px;
+  background: #fffaf2;
+  color: #29251f;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.topic-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.topic-category {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e5d9c9;
+  border-radius: 7px;
+  background: #fcf8f0;
+}
+
+.topic-category h3 {
+  margin: 0 0 9px;
+  font: 700 13px "Fraunces", serif;
+}
+
+.topic-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.topic-suggestions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  max-width: 100%;
+  border: 1px solid #dfd2c1;
+  border-radius: 16px;
+  background: #f5ecdf;
+  color: #55493e;
+  padding: 6px 9px;
+  text-align: left;
+  font-size: 9px;
+  line-height: 1.4;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.topic-suggestions button:hover {
+  border-color: #c77b5e;
+  background: #f8e4db;
+}
+
+.topic-suggestions button svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 620px) {
+  .topic-explorer {
+    padding: 16px;
+  }
+
+  .topic-explorer-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topic-audience {
+    flex-basis: auto;
+  }
+
+  .topic-category-grid {
+    grid-template-columns: 1fr;
+  }
+}

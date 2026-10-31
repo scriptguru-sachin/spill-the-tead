@@ -35,11 +35,64 @@ import {
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_URL || "/api";
-const examples = [
-  "How your browser loads a website",
-  "TCP vs UDP during a live concert",
-  "CRISPR enters the cell's group chat",
-  "The French Revolution as a courtroom trial",
+const topicAudiences = [
+  { id: "all", label: "All ages" },
+  { id: "6-9", label: "Ages 6–9" },
+  { id: "10-12", label: "Ages 10–12" },
+  { id: "13-17", label: "Ages 13–17" },
+  { id: "18+", label: "Adults 18+" },
+];
+const topicCategories = [
+  {
+    name: "Money & finance",
+    topics: {
+      all: ["How do budgets and savings work?", "What makes prices go up or down?"],
+      "6-9": ["Saving pocket money for something special", "Why do things have different prices?"],
+      "10-12": ["How a budget helps you reach a savings goal", "What supply and demand have to do with prices"],
+      "13-17": ["How bank accounts, interest, and credit work", "How to make a first monthly budget"],
+      "18+": ["How compound interest builds wealth over time", "Investing basics: risk, return, and diversification"],
+    },
+  },
+  {
+    name: "Biology & life",
+    topics: {
+      all: ["How your immune system protects you", "Why do plants need sunlight?"],
+      "6-9": ["How your body turns food into energy", "How a tiny seed grows into a plant"],
+      "10-12": ["How the brain sends messages around your body", "How food chains connect living things"],
+      "13-17": ["How DNA instructions make proteins", "How evolution changes populations over time"],
+      "18+": ["How the immune system recognizes a new pathogen", "How genes, environment, and cells shape health"],
+    },
+  },
+  {
+    name: "DSA & problem-solving",
+    topics: {
+      all: ["How does a search algorithm find a name?", "How can you organize a big pile of information?"],
+      "6-9": ["How to sort a collection of cards step by step", "How a treasure map can work like a search algorithm"],
+      "10-12": ["How lists and dictionaries organize information", "How to find a route through a maze efficiently"],
+      "13-17": ["How arrays, stacks, and queues solve different problems", "How binary search quickly finds an item"],
+      "18+": ["How hash maps and trees make lookups efficient", "How to compare sorting algorithms and their trade-offs"],
+    },
+  },
+  {
+    name: "Technology",
+    topics: {
+      all: ["How does the internet send a message?", "How does artificial intelligence learn patterns?"],
+      "6-9": ["How a video travels from the internet to your screen", "How a robot follows instructions"],
+      "10-12": ["How websites talk to servers", "How AI spots patterns in pictures"],
+      "13-17": ["How APIs let apps communicate", "How machine-learning models learn from data"],
+      "18+": ["How cloud computing scales an online service", "How encryption protects data on the internet"],
+    },
+  },
+  {
+    name: "Everyday & beyond",
+    topics: {
+      all: ["Why do people vote?", "How do you spot a convincing argument?"],
+      "6-9": ["How a community makes fair rules", "Why do we have different kinds of weather?"],
+      "10-12": ["How local government makes decisions", "How to tell a reliable fact from a rumor"],
+      "13-17": ["How an election turns votes into decisions", "How to recognize bias in online information"],
+      "18+": ["How public policy shapes everyday life", "How to evaluate arguments and evidence critically"],
+    },
+  },
 ];
 const tabs = [
   { id: "gossip", label: "The gossip", icon: MessageCircle },
@@ -197,6 +250,7 @@ export default function App() {
   const [level, setLevel] = useState("Auto");
   const [format, setFormat] = useState("Group chat");
   const [drama, setDrama] = useState(3);
+  const [topicAudience, setTopicAudience] = useState("all");
   const [lesson, setLesson] = useState(null);
   const [history, setHistory] = useState([]);
   const [tab, setTab] = useState("gossip");
@@ -706,21 +760,50 @@ export default function App() {
               </button>
               {error && <div className="error">Plot twist: {error}</div>}
             </section>
-            <div className="prompt-row">
-              <span>NEED A TOPIC?</span>
-              {examples.map((x) => (
-                <button
-                  key={x}
-                  onClick={() => {
-                    setTopic(x);
-                    generate(x);
-                  }}
-                >
-                  {x}
-                  <ArrowUpRight size={13} />
-                </button>
-              ))}
-            </div>
+            <section className="topic-explorer" aria-labelledby="topic-explorer-title">
+              <div className="topic-explorer-heading">
+                <div>
+                  <span>NEED A TOPIC?</span>
+                  <h2 id="topic-explorer-title">Pick a curiosity to explore</h2>
+                  <p>Browse money, science, coding, technology, and everyday ideas.</p>
+                </div>
+                <label className="topic-audience">
+                  <span>IDEAS FOR</span>
+                  <select
+                    value={topicAudience}
+                    onChange={(event) => setTopicAudience(event.target.value)}
+                    aria-label="Choose an age group for topic suggestions"
+                  >
+                    {topicAudiences.map((audience) => (
+                      <option key={audience.id} value={audience.id}>
+                        {audience.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="topic-category-grid">
+                {topicCategories.map((category) => (
+                  <div className="topic-category" key={category.name}>
+                    <h3>{category.name}</h3>
+                    <div className="topic-suggestions">
+                      {(category.topics[topicAudience] || category.topics.all).map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => {
+                            setTopic(suggestion);
+                            generate(suggestion);
+                          }}
+                        >
+                          {suggestion}
+                          <ArrowUpRight size={13} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
             <section className="how">
               <div>
                 <span>01</span>
