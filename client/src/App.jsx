@@ -264,6 +264,7 @@ export default function App() {
   const [visibleText, setVisibleText] = useState("");
   const [typedMessageKey, setTypedMessageKey] = useState(null);
   const [autoplay, setAutoplay] = useState(false);
+  const [autoplayPaused, setAutoplayPaused] = useState(false);
   const [autoplayCountdown, setAutoplayCountdown] = useState(null);
   const [speechEnabled, setSpeechEnabled] = useState(false);
   const [speechPlaying, setSpeechPlaying] = useState(false);
@@ -271,6 +272,8 @@ export default function App() {
   const speechUtterance = useRef(null);
   const speechUtteranceKey = useRef(null);
   const autoplayAdvancePending = useRef(null);
+  const autoplayPausedRef = useRef(autoplayPaused);
+  const autoplayTimerRef = useRef(null);
   const autoplayRef = useRef(autoplay);
   const lessonRef = useRef(lesson);
   const gossipIndexRef = useRef(gossipIndex);
@@ -302,6 +305,9 @@ export default function App() {
     setVisibleText("");
     setFactIndex(0);
     setAutoplay(false);
+    setAutoplayPaused(false);
+    setAutoplayCountdown(null);
+    autoplayTimerRef.current = null;
     setDoubtCharacter(null);
     setDoubtReply("");
     setConversationComplete(false);
@@ -329,11 +335,13 @@ export default function App() {
     const currentIndex = gossipIndexRef.current;
     if (
       !autoplayRef.current ||
+      autoplayPausedRef.current ||
       currentSpeechMessageKeyRef.current !== messageKey ||
       !currentLesson?.conversation?.length
     )
       return;
     setAutoplayCountdown(null);
+    autoplayTimerRef.current = null;
     if (currentIndex < currentLesson.conversation.length - 1) {
       setGossipIndex((index) => index + 1);
       setDoubtCharacter(null);
@@ -358,13 +366,24 @@ export default function App() {
       3600,
       Math.min(8000, text.split(/\s+/).length * 360),
     );
+    let timerState = autoplayTimerRef.current;
+    if (!timerState || timerState.messageKey !== messageKey) {
+      timerState = { messageKey, duration: displayDuration, elapsed: 0 };
+      autoplayTimerRef.current = timerState;
+    }
+    if (autoplayPaused) return;
     const startedAt = Date.now();
+    const elapsedBeforeStart = timerState.elapsed;
     setAutoplayCountdown({
       messageKey,
-      progress: 0,
+      progress: elapsedBeforeStart / displayDuration,
     });
     const timer = setInterval(() => {
-      const elapsed = Date.now() - startedAt;
+      const elapsed = Math.min(
+        elapsedBeforeStart + Date.now() - startedAt,
+        displayDuration,
+      );
+      timerState.elapsed = elapsed;
       const progress = Math.min(elapsed / displayDuration, 1);
       if (progress < 1) {
         setAutoplayCountdown({
@@ -390,9 +409,18 @@ export default function App() {
       setAutoplayCountdown(null);
       advanceAutoplay(messageKey);
     }, 100);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (autoplayTimerRef.current === timerState) {
+        timerState.elapsed = Math.min(
+          elapsedBeforeStart + Date.now() - startedAt,
+          displayDuration,
+        );
+      }
+    };
   }, [
     autoplay,
+    autoplayPaused,
     visibleText,
     typedMessageKey,
     gossipIndex,
@@ -602,6 +630,7 @@ export default function App() {
   gossipIndexRef.current = gossipIndex;
   currentSpeechMessageKeyRef.current = currentSpeechMessageKey;
   speechEnabledRef.current = speechEnabled;
+  autoplayPausedRef.current = autoplayPaused;
   const currentSpeaker = currentMessage
     ? cast[currentMessage.characterId] || {}
     : {};
@@ -632,8 +661,10 @@ export default function App() {
       speechUtteranceKey.current = null;
       setSpeechPlaying(false);
       if (autoplayAdvancePending.current === currentSpeechMessageKey) {
-        autoplayAdvancePending.current = null;
-        advanceAutoplay(currentSpeechMessageKey);
+        if (!autoplayPausedRef.current) {
+          autoplayAdvancePending.current = null;
+          advanceAutoplay(currentSpeechMessageKey);
+        }
       }
     };
     utterance.onerror = (event) => {
@@ -646,8 +677,10 @@ export default function App() {
           "Speech playback stopped unexpectedly. Please try again.",
         );
       if (autoplayAdvancePending.current === currentSpeechMessageKey) {
-        autoplayAdvancePending.current = null;
-        advanceAutoplay(currentSpeechMessageKey);
+        if (!autoplayPausedRef.current) {
+          autoplayAdvancePending.current = null;
+          advanceAutoplay(currentSpeechMessageKey);
+        }
       }
     };
     window.speechSynthesis.speak(utterance);
@@ -706,8 +739,33 @@ export default function App() {
   }
 
   function toggleAutoplay() {
-    if (autoplay) setAutoplayCountdown(null);
-    setAutoplay((enabled) => !enabled);
+    if (autoplay) {
+      setAutoplayCountdown(null);
+      autoplayTimerRef.current = null;
+      autoplayAdvancePending.current = null;
+      setAutoplayPaused(false);
+      autoplayPausedRef.current = false;
+      setAutoplay(false);
+      return;
+    }
+    setAutoplayPaused(false);
+    autoplayPausedRef.current = false;
+    setAutoplay(true);
+  }
+
+  function toggleAutoplayPause() {
+    const nextPaused = !autoplayPausedRef.current;
+    autoplayPausedRef.current = nextPaused;
+    setAutoplayPaused(nextPaused);
+    if (
+      !nextPaused &&
+      autoplayAdvancePending.current &&
+      !speechUtterance.current
+    ) {
+      const messageKey = autoplayAdvancePending.current;
+      autoplayAdvancePending.current = null;
+      advanceAutoplay(messageKey);
+    }
   }
 
   return (
@@ -1139,7 +1197,12 @@ export default function App() {
                               </small>
                             </div>
                             <div
-                              className={`message-bubble ${currentMessage?.kind || ""}`}
+                              className={`message-bubble ${currentMessage?.kind || ""} ${
+                                autoplayCountdown?.messageKey ===
+                                currentSpeechMessageKey
+                                  ? "autoplay-active"
+                                  : ""
+                              }`}
                             >
                               <p>
                                 {visibleText}
@@ -1147,27 +1210,42 @@ export default function App() {
                               </p>
                               {autoplayCountdown?.messageKey ===
                                 currentSpeechMessageKey && (
-                                <div
-                                  className="autoplay-countdown"
-                                  role="progressbar"
-                                  aria-label="Time until the next message"
-                                  aria-valuemin={0}
-                                  aria-valuemax={100}
-                                  aria-valuenow={
-                                    autoplayCountdown?.messageKey ===
-                                    currentSpeechMessageKey
-                                      ? Math.round(
-                                          autoplayCountdown.progress * 100,
-                                        )
-                                      : 0
-                                  }
-                                >
-                                  <span
-                                    style={{
-                                      width: `${autoplayCountdown.progress * 100}%`,
-                                    }}
-                                  />
-                                </div>
+                                <>
+                                  <button
+                                    className="autoplay-pause"
+                                    onClick={toggleAutoplayPause}
+                                    aria-label={
+                                      autoplayPaused
+                                        ? "Resume autoplay timer"
+                                        : "Pause autoplay timer"
+                                    }
+                                    title={
+                                      autoplayPaused
+                                        ? "Resume autoplay"
+                                        : "Pause autoplay to answer the prediction"
+                                    }
+                                  >
+                                    {autoplayPaused ? <Play /> : <Pause />}
+                                  </button>
+                                  <div
+                                    className={`autoplay-countdown ${
+                                      autoplayPaused ? "paused" : ""
+                                    }`}
+                                    role="progressbar"
+                                    aria-label="Time until the next message"
+                                    aria-valuemin={0}
+                                    aria-valuemax={100}
+                                    aria-valuenow={Math.round(
+                                      autoplayCountdown.progress * 100,
+                                    )}
+                                  >
+                                    <span
+                                      style={{
+                                        width: `${autoplayCountdown.progress * 100}%`,
+                                      }}
+                                    />
+                                  </div>
+                                </>
                               )}
                             </div>
                             {currentMessage?.reflectionPrompt &&
