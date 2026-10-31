@@ -31,4 +31,9 @@ class Lesson extends Model
     {
         return $this->hasMany(Doubt::class);
     }
+
+    public function teachBackAttempts(): HasMany
+    {
+        return $this->hasMany(TeachBackAttempt::class);
+    }
 }

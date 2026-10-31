@@ -215,6 +215,75 @@
   white-space: pre-wrap;
 }
 
+.teach-back-ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.teach-back-ratings > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1px solid #d5e0d3;
+  border-radius: 14px;
+  background: #f7faf6;
+  color: #315d48;
+  font-size: 9px;
+}
+
+.teach-back-ratings b {
+  margin: 0;
+  color: #39483c;
+  font-size: 9px;
+}
+
+.teach-back-rating-note {
+  display: block;
+  margin-top: 5px;
+  color: #756b60;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.teach-back-report {
+  display: grid;
+  gap: 9px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #d5e0d3;
+}
+
+.teach-back-report b {
+  display: block;
+  margin-bottom: 4px;
+  color: #39483c;
+  font-size: 10px;
+}
+
+.teach-back-report ul {
+  margin: 0;
+  padding-left: 17px;
+  color: #4e594f;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.teach-back-report li + li {
+  margin-top: 3px;
+}
+
+.teach-back-report p {
+  color: #4e594f;
+  font-size: 10px;
+}
+
+.teach-back-attempt-status {
+  color: #756b60 !important;
+}
+
 .teach-back-error {
   margin: 9px 0 0;
   color: #a33424;

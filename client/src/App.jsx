@@ -153,6 +153,43 @@ function getClientId() {
   return id;
 }
 
+function TeachBackReport({ report }) {
+  return (
+    <div className="teach-back-report">
+      {report.strengths?.length > 0 && (
+        <div>
+          <b>What you explained well</b>
+          <ul>
+            {report.strengths.map((item, index) => (
+              <li key={`strength-${index}`}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {report.gaps?.length > 0 && (
+        <div>
+          <b>What to strengthen</b>
+          <ul>
+            {report.gaps.map((item, index) => (
+              <li key={`gap-${index}`}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {report.correction && (
+        <p>
+          <b>Clarification:</b> {report.correction}
+        </p>
+      )}
+      {report.next_step && (
+        <p>
+          <b>Try next:</b> {report.next_step}
+        </p>
+      )}
+    </div>
+  );
+}
+
 async function api(path, options) {
   const response = await fetch(`${API}${path}`, {
     headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -341,6 +378,9 @@ export default function App() {
   const predictionRequest = useRef(0);
   const [teachBackDraft, setTeachBackDraft] = useState("");
   const [teachBackReply, setTeachBackReply] = useState("");
+  const [teachBackReport, setTeachBackReport] = useState(null);
+  const [teachBackAttempts, setTeachBackAttempts] = useState([]);
+  const [teachBackHistoryError, setTeachBackHistoryError] = useState("");
   const [teachBackError, setTeachBackError] = useState("");
   const [teachBackLoading, setTeachBackLoading] = useState(false);
   const teachBackRequest = useRef(0);
@@ -371,6 +411,9 @@ export default function App() {
     teachBackRequest.current += 1;
     setTeachBackDraft("");
     setTeachBackReply("");
+    setTeachBackReport(null);
+    setTeachBackAttempts([]);
+    setTeachBackHistoryError("");
     setTeachBackError("");
     setTeachBackLoading(false);
     setConversationComplete(false);
@@ -516,6 +559,11 @@ export default function App() {
     api(`/lessons/${lesson.id}/doubts?client_id=${clientId}`)
       .then(setDoubtHistory)
       .catch(() => setDoubtHistory([]));
+    setTeachBackAttempts([]);
+    setTeachBackHistoryError("");
+    api(`/lessons/${lesson.id}/teach-back-attempts?client_id=${clientId}`)
+      .then(setTeachBackAttempts)
+      .catch((e) => setTeachBackHistoryError(e.message));
   }, [lesson?.id, clientId]);
 
   async function generate(chosen = topic) {
@@ -541,6 +589,31 @@ export default function App() {
       });
       setLesson(data);
       setTopic(chosen);
+      loadHistory();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateDeeperLesson(parentLesson) {
+    if (!parentLesson?.id || loading) return;
+    cancelSpeech();
+    setLoading(true);
+    setError("");
+    setLesson(null);
+    setTab("gossip");
+    setAnswers({});
+    setResult(null);
+    setFeedback(null);
+    try {
+      const data = await api(`/lessons/${parentLesson.id}/follow-ups`, {
+        method: "POST",
+        body: JSON.stringify({ client_id: clientId, mode: "go_deeper" }),
+      });
+      setLesson(data);
+      setTopic(data.topic);
       loadHistory();
     } catch (e) {
       setError(e.message);
@@ -728,38 +801,27 @@ export default function App() {
   async function submitTeachBack(event) {
     event.preventDefault();
     const response = teachBackDraft.trim();
-    const coach = lesson?.characters?.[0];
-    if (!response || !coach?.id || teachBackLoading) return;
-
-    const question =
-      `TEACH_BACK:${JSON.stringify({ response })}\n` +
-      `Review this explanation against the lesson. Give specific supportive feedback: ` +
-      `identify what's accurate, missing or mistaken; gently correct errors; suggest ` +
-      `one improvement. No grade. Invite revision.`;
-    if (Array.from(question).length > 500) {
-      setTeachBackError("Please shorten your explanation and try again.");
-      return;
-    }
+    if (!response || teachBackLoading || !lesson?.id) return;
 
     setTeachBackLoading(true);
     setTeachBackError("");
     setTeachBackReply("");
+    setTeachBackReport(null);
     const requestId = ++teachBackRequest.current;
     try {
-      const data = await api(`/lessons/${lesson.id}/doubts`, {
+      const data = await api(`/lessons/${lesson.id}/teach-back-attempts`, {
         method: "POST",
         body: JSON.stringify({
           client_id: clientId,
-          message_id: null,
-          character_id: coach.id,
-          question,
+          response,
         }),
       });
-      if (typeof data.answer !== "string" || !data.answer.trim())
+      if (!data.report || !data.ratings || typeof data.response !== "string")
         throw new Error("Feedback wasn't available. Please try again.");
       if (requestId === teachBackRequest.current) {
-        setTeachBackReply(data.answer);
-        setDoubtHistory((items) => [...items, data]);
+        setTeachBackReport(data);
+        setTeachBackReply(data.report.summary);
+        setTeachBackAttempts((items) => [...items, data]);
       }
     } catch (e) {
       if (requestId === teachBackRequest.current)
@@ -774,6 +836,38 @@ export default function App() {
     () => Object.fromEntries((lesson?.characters || []).map((c) => [c.id, c])),
     [lesson],
   );
+  const historyRecommendations = useMemo(() => {
+    const visited = new Set(
+      history.map((item) => item.topic?.trim().toLowerCase()).filter(Boolean),
+    );
+    const categoryMatchers = [
+      /finance|money|budget|saving|price|interest|bank|credit|invest/i,
+      /biology|cell|plant|dna|gene|immune|food chain|brain|evolution|health/i,
+      /algorithm|data structure|search|sort|array|stack|queue|tree|hash map|maze/i,
+      /technology|internet|computer|api|website|server|artificial intelligence|machine learning|cloud|encrypt|software|redis/i,
+    ];
+
+    return history.slice(0, 2).map((source) => {
+      const sourceTopic = (source.topic || "this topic").trim();
+      const categoryIndex = categoryMatchers.findIndex((pattern) =>
+        pattern.test(sourceTopic),
+      );
+      const category =
+        categoryIndex >= 0 ? topicCategories[categoryIndex] : null;
+      const suggestions =
+        category?.topics[topicAudience] || category?.topics.all || [];
+      const relatedTopic = suggestions.find(
+        (suggestion) => !visited.has(suggestion.toLowerCase()),
+      );
+
+      return {
+        source,
+        relatedTopic:
+          relatedTopic ||
+          `Real-world applications of ${sourceTopic}`.slice(0, 300),
+      };
+    });
+  }, [history, topicAudience]);
 
   const currentMessage = lesson?.conversation?.[gossipIndex];
   const currentSpeechMessageKey = currentMessage
@@ -1204,6 +1298,70 @@ export default function App() {
               </button>
               {error && <div className="error">Plot twist: {error}</div>}
             </section>
+            {historyRecommendations.length > 0 && (
+              <section
+                className="history-recommendations"
+                aria-labelledby="history-recommendations-title"
+              >
+                <div className="history-recommendations-heading">
+                  <div>
+                    <span>BASED ON YOUR RECENT TEA</span>
+                    <h2 id="history-recommendations-title">
+                      Keep your curiosity going
+                    </h2>
+                    <p>
+                      Pick up where you left off or branch into a related idea.
+                    </p>
+                  </div>
+                  <History aria-hidden="true" />
+                </div>
+                <div className="history-recommendation-grid">
+                  {historyRecommendations.map(({ source, relatedTopic }) => (
+                    <article
+                      className="history-recommendation"
+                      key={source.id}
+                    >
+                      <p className="history-recommendation-source">
+                        Because you explored <b>{source.topic}</b>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => generateDeeperLesson(source)}
+                        disabled={loading}
+                      >
+                        <span className="history-recommendation-icon">
+                          <Sparkles />
+                        </span>
+                        <span>
+                          <b>Go deeper</b>
+                          <small>
+                            Explore the mechanisms, trade-offs, and edge cases
+                          </small>
+                        </span>
+                        <ArrowUpRight />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTopic(relatedTopic);
+                          generate(relatedTopic);
+                        }}
+                        disabled={loading}
+                      >
+                        <span className="history-recommendation-icon">
+                          <ArrowRight />
+                        </span>
+                        <span>
+                          <b>Explore a related topic</b>
+                          <small>{relatedTopic}</small>
+                        </span>
+                        <ArrowUpRight />
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
             <section className="topic-explorer" aria-labelledby="topic-explorer-title">
               <div className="topic-explorer-heading">
                 <div>
@@ -1976,6 +2134,7 @@ export default function App() {
                       onChange={(event) => {
                         setTeachBackDraft(event.target.value);
                         setTeachBackReply("");
+                        setTeachBackReport(null);
                         setTeachBackError("");
                       }}
                       placeholder="What are the key parts, and how do they work together?"
@@ -2010,11 +2169,78 @@ export default function App() {
                       <div>
                         <b>Feedback to help you refine it</b>
                         <p>{teachBackReply}</p>
+                        {teachBackReport && (
+                          <>
+                            <div className="teach-back-ratings">
+                              {[
+                                ["Accuracy", teachBackReport.ratings.accuracy],
+                                ["Completeness", teachBackReport.ratings.completeness],
+                                ["Clarity", teachBackReport.ratings.clarity],
+                              ].map(([label, rating]) => (
+                                <span key={label}>
+                                  <b>{label}</b>
+                                  {rating}/5
+                                </span>
+                              ))}
+                            </div>
+                            <small className="teach-back-rating-note">
+                              Guidance only: 1 means needs more support; 5 means
+                              clear and accurate.
+                            </small>
+                            <TeachBackReport report={teachBackReport.report} />
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
                   <div className="teach-back-history">
                     <h3>Your previous explanations</h3>
+                    {teachBackHistoryError && (
+                      <p className="teach-back-error" role="alert">
+                        Couldn’t load saved attempts: {teachBackHistoryError}
+                      </p>
+                    )}
+                    {teachBackAttempts
+                      .slice()
+                      .reverse()
+                      .map((attempt) => (
+                        <article
+                          className="teach-back-attempt"
+                          key={`saved-${attempt.id}`}
+                        >
+                          <div>
+                            <b>Your explanation</b>
+                            <p>{attempt.response}</p>
+                          </div>
+                          {attempt.status === "completed" && attempt.report ? (
+                            <>
+                              <div className="teach-back-ratings">
+                                {[
+                                  ["Accuracy", attempt.ratings?.accuracy],
+                                  ["Completeness", attempt.ratings?.completeness],
+                                  ["Clarity", attempt.ratings?.clarity],
+                                ].map(([label, rating]) => (
+                                  <span key={label}>
+                                    <b>{label}</b>
+                                    {rating ?? "—"}/5
+                                  </span>
+                                ))}
+                              </div>
+                              <small className="teach-back-rating-note">
+                                Guidance only: 1 means needs more support; 5
+                                means clear and accurate.
+                              </small>
+                              <TeachBackReport report={attempt.report} />
+                            </>
+                          ) : (
+                            <p className="teach-back-attempt-status">
+                              {attempt.status === "failed"
+                                ? "Feedback could not be generated for this attempt."
+                                : "Feedback is still processing."}
+                            </p>
+                          )}
+                        </article>
+                      ))}
                     {doubtHistory
                       .filter((item) => getTeachBackResponse(item.question))
                       .slice()
@@ -2034,9 +2260,10 @@ export default function App() {
                           </div>
                         </article>
                       ))}
-                    {!doubtHistory.some((item) =>
-                      getTeachBackResponse(item.question),
-                    ) && (
+                    {!teachBackAttempts.length &&
+                      !doubtHistory.some((item) =>
+                        getTeachBackResponse(item.question),
+                      ) && (
                       <p className="teach-back-empty">
                         Your submissions and feedback will appear here.
                       </p>

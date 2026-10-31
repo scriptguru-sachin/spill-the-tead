@@ -75,6 +75,11 @@ Spill the Tea keeps both. **The humour is the delivery mechanism, not the source
 - Facts are revealed one by one (click or autoplay).
 - Each shows the actual meaning of a concept plus **"Where the analogy stops"**, so metaphors don't turn into misconceptions.
 
+### 📚 Technical explanation and teach-back
+- A direct explanation presents the lesson's core mechanics without the story framing.
+- Learners explain the topic in their own words and receive a saved report with formative accuracy, completeness, and clarity ratings (1–5), strengths, gaps, corrections, and a next step.
+- Each attempt is retained with the learner's original wording so they can revisit and refine their understanding.
+
 ### 🗺️ Concept map
 - An interactive [React Flow](https://reactflow.dev/) diagram with labelled, directional edges.
 - A custom layout places nodes in columns by dependency depth.
@@ -110,6 +115,7 @@ With no history, lessons start at Beginner. After a quiz you can generate a **li
 
 ### 🕘 History and feedback
 - A sidebar with your 12 most recent lessons, which you can reopen anytime.
+- The home page recommends deeper sequels and related topics based on recent lessons. Deeper sequels link to the lesson they continue; new topic lessons are added to history.
 - Thumbs up/down feedback ("Did this make the topic click?"), stored once per lesson per learner.
 - Responsive layout with a collapsible history panel and a mobile drawer menu.
 
@@ -305,6 +311,8 @@ Base URL: `http://localhost:8000/api`. All responses are JSON.
 | `POST` | `/lessons/{id}/follow-ups` | Generate an adaptive sequel |
 | `GET` | `/lessons/{id}/doubts?client_id={uuid}` | Load saved doubts |
 | `POST` | `/lessons/{id}/doubts` | Ask a character a doubt |
+| `GET` | `/lessons/{id}/teach-back-attempts?client_id={uuid}` | Load a learner's saved explanations, ratings, and reports |
+| `POST` | `/lessons/{id}/teach-back-attempts` | Save and review an explanation |
 
 ### Create a lesson
 
@@ -402,6 +410,19 @@ The answers array must contain one value (0–3) per question.
 }
 ```
 
+### Submit a teach-back attempt
+
+`POST /lessons/{id}/teach-back-attempts`
+
+```json
+{
+  "client_id": "uuid",
+  "response": "A client sends a request to a server, and the server sends back a response."
+}
+```
+
+The response includes the saved wording, `ratings` for accuracy, completeness, and clarity (each from 1 to 5), a structured `report` with strengths, gaps, corrections, and a next step, plus a `status`. These ratings are formative guidance, not a school grade. The `GET` endpoint returns the learner's attempts in chronological order.
+
 ### Save feedback
 
 `POST /lessons/{id}/feedback`
@@ -424,6 +445,7 @@ Validation errors return `422` with Laravel's standard `errors` object. When the
 | `quiz_attempts` | Lesson reference, `client_id`, answers (JSONB), score, total |
 | `feedback` | Lesson reference, `client_id`, `helpful`, comment. Unique per `(lesson_id, client_id)` |
 | `doubts` | Lesson reference, `client_id`, `message_id`, `character_id`, question, answer |
+| `teach_back_attempts` | Lesson reference, `client_id`, original learner response, formative ratings and structured report, processing status |
 
 Follow-up episodes link to their parent through `parent_lesson_id`, with `path_type` set to `original`, `weak_spots`, `go_deeper`, `practical`, or `compare`.
 
@@ -465,7 +487,6 @@ The suite covers the health endpoint, lesson creation and validation (with a fak
 - Voice acting and accessible subtitles for each character
 - Teacher and classroom rooms with aggregate quiz insights
 - Spaced-repetition reviews based on weak concepts
-- Teach-back mode where the learner explains the topic to the cast
 - Shareable public episodes and PDF/flashcard exports
 - Multilingual stories with localised humour
 - Progress dashboard with streaks and mastery

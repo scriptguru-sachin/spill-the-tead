@@ -119,3 +119,146 @@
     grid-template-columns: 1fr;
   }
 }
+
+.history-recommendations {
+  width: min(100%, 920px);
+  margin: 22px auto 0;
+  padding: 22px;
+  border: 1px solid #dfd2c1;
+  border-radius: 12px;
+  background: #fcf8f0;
+}
+
+.history-recommendations-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.history-recommendations-heading > div > span {
+  color: #a64d31;
+  font: 8px "DM Mono", monospace;
+  letter-spacing: 1px;
+}
+
+.history-recommendations-heading h2 {
+  margin: 5px 0;
+  font: 700 22px "Fraunces", serif;
+}
+
+.history-recommendations-heading p {
+  margin: 0;
+  color: #756b60;
+  font-size: 11px;
+}
+
+.history-recommendations-heading > svg {
+  width: 23px;
+  color: #a64d31;
+}
+
+.history-recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.history-recommendation {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #e5d9c9;
+  border-radius: 8px;
+  background: #f8f1e7;
+}
+
+.history-recommendation-source {
+  margin: 0 0 10px;
+  color: #756b60;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.history-recommendation-source b {
+  color: #55493e;
+}
+
+.history-recommendation > button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #dfd2c1;
+  border-radius: 6px;
+  background: #fffaf2;
+  color: #55493e;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.history-recommendation > button + button {
+  margin-top: 7px;
+}
+
+.history-recommendation > button:hover:not(:disabled) {
+  border-color: #c77b5e;
+  background: #f8e4db;
+}
+
+.history-recommendation > button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.history-recommendation > button > svg {
+  width: 14px;
+  color: #a64d31;
+}
+
+.history-recommendation-icon {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f1e2d4;
+  color: #a64d31;
+}
+
+.history-recommendation-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.history-recommendation > button > span:nth-child(2) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.history-recommendation > button b {
+  font-size: 10px;
+}
+
+.history-recommendation > button small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #756b60;
+  font-size: 9px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+@media (max-width: 620px) {
+  .history-recommendations {
+    padding: 16px;
+  }
+
+  .history-recommendation-grid {
+    grid-template-columns: 1fr;
+  }
+}
